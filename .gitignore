@@ -1,0 +1,14 @@
+# Local planning and verification state
+attention-units/
+*-plan.md
+
+# Runtime user data must never be published
+friction.jsonl
+friction-pending/
+friction-reports/
+
+# PowerShell/editor residue
+*.tmp
+*.bak
+.vscode/
+.idea/

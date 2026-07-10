@@ -15,7 +15,7 @@ The logger records the blocked intent and observed obstacle only. Diagnosis and 
 - Silent, fail-open append. Logger failure never interrupts the primary task.
 - No daemon, service, watcher, background PowerShell process, or MCP server.
 - Compact newline-delimited JSON: `ts`, `cwd`, `blocked`, `friction`.
-- Concurrency-safe writer and lossless weekly batch consumption.
+- Concurrency-safe writer, single-owner review lease, and lossless weekly batch consumption.
 - Idempotent install; reversible uninstall; log retained by default.
 
 ## Requirements
@@ -55,6 +55,7 @@ Installed paths:
 | Review batch command | `%USERPROFILE%\.codex\bin\friction-review.ps1` |
 | Active log | `%USERPROFILE%\.codex\friction.jsonl` |
 | Recoverable pending batches | `%USERPROFILE%\.codex\friction-pending\` |
+| Current review lease | `%USERPROFILE%\.codex\friction-review.lock` |
 
 The installer adds `%USERPROFILE%\.codex\bin` to the user `PATH`. New PowerShell and Codex processes inherit it. Nothing remains running after setup.
 
@@ -94,12 +95,13 @@ Do not put secrets, tokens, credentials, customer data, or sensitive file conten
 
 Weekly review uses a claim/complete lifecycle:
 
-1. Active rows move under the same writer mutex into a recoverable pending batch.
-2. New events continue in a fresh active log.
-3. The reviewer writes a durable recommendation report.
-4. Only batches represented in that report are deleted.
+1. One reviewer acquires a 24-hour lease; overlapping runs exit without touching batches.
+2. Active rows move under the same writer mutex into a recoverable pending batch.
+3. New events continue in a fresh active log.
+4. The reviewer writes a durable recommendation report.
+5. Only batches represented in that report are deleted; the owner then releases its lease.
 
-If review fails before step 4, the pending batch remains for the next run. This prevents silent data loss and duplicate review.
+If review fails before completion, the pending batch and lease remain. A later run can reclaim a lease older than 24 hours. This prevents silent data loss and duplicate review.
 
 ## Uninstall
 
@@ -123,7 +125,7 @@ Uninstall does not delete unrelated `%USERPROFILE%\.codex\AGENTS.md` content or 
 powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\tests\verify.ps1
 ```
 
-The isolated suite covers syntax, clean setup, repeated install, malformed managed markers, silent/invalid calls, multiple project directories, 32 concurrent writers, recoverable review consumption, safe uninstall, and proof that production files and user `PATH` were untouched.
+The isolated suite covers syntax, clean setup, repeated install, malformed managed markers, silent/invalid calls, multiple project directories, 32 concurrent writers, overlapping reviewer rejection, stale-lease recovery, lossless batch consumption, safe uninstall, and proof that production files and user `PATH` were untouched.
 
 ## License
 

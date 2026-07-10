@@ -179,20 +179,30 @@ try {
     & $writer 'old intent 1' 'old obstacle 1'
     & $writer 'old intent 2' 'old obstacle 2'
     $claim = (& $reviewer -Claim) | ConvertFrom-Json
+    Assert-True (-not $claim.busy -and -not [string]::IsNullOrWhiteSpace($claim.lease)) 'first reviewer acquires a lease'
     Assert-True (-not [string]::IsNullOrWhiteSpace($claim.batch)) 'non-empty active log produces a pending batch'
     & $writer 'new intent' 'new obstacle'
-    $pendingBefore = (& $reviewer -List) | ConvertFrom-Json
+    $duplicate = (& $reviewer -Claim) | ConvertFrom-Json
+    Assert-True ($duplicate.busy -and [string]::IsNullOrWhiteSpace([string]$duplicate.lease)) 'overlapping reviewer exits without ownership'
+    $pendingBefore = (& $reviewer -List -Lease $claim.lease) | ConvertFrom-Json
     Assert-True (@($pendingBefore.batches).Count -eq 1) 'claimed batch remains pending until completion'
     Assert-True (@(Get-Content -LiteralPath $claim.path).Count -eq 2) 'claimed batch contains all reviewed rows'
     $activeAfterClaim = @(Get-Content -LiteralPath $log | ForEach-Object { $_ | ConvertFrom-Json })
     Assert-True ($activeAfterClaim.Count -eq 1 -and $activeAfterClaim[0].blocked -eq 'new intent') 'new append survives batch claim'
-    $null = & $reviewer -Complete -Batch $claim.batch
+    $null = & $reviewer -Complete -Lease $claim.lease -Batch $claim.batch
     Assert-True (-not (Test-Path -LiteralPath $claim.path)) 'completed batch is removed'
-    Assert-True (@(((& $reviewer -List) | ConvertFrom-Json).batches).Count -eq 0) 'completed batch cannot be reviewed again'
+    Assert-True (@(((& $reviewer -List -Lease $claim.lease) | ConvertFrom-Json).batches).Count -eq 0) 'completed batch cannot be reviewed again'
+    $null = & $reviewer -Release -Lease $claim.lease
 
     & $writer 'recoverable intent' 'recoverable obstacle'
     $recoverable = (& $reviewer -Claim) | ConvertFrom-Json
     Assert-True (Test-Path -LiteralPath $recoverable.path) 'uncompleted batch remains recoverable'
+    $leasePath = Join-Path $codex 'friction-review.lock'
+    $staleLease = [ordered]@{ token = $recoverable.lease; acquired = [DateTimeOffset]::UtcNow.AddHours(-25).ToString('o') }
+    [IO.File]::WriteAllText($leasePath, (ConvertTo-Json $staleLease -Compress), [Text.UTF8Encoding]::new($false))
+    $reclaimed = (& $reviewer -Claim) | ConvertFrom-Json
+    Assert-True (-not $reclaimed.busy -and $reclaimed.lease -ne $recoverable.lease) 'stale review lease is recoverable'
+    Assert-True (@(((& $reviewer -List -Lease $reclaimed.lease) | ConvertFrom-Json).batches).Count -eq 1) 'reclaimed lease sees retained batch'
 
     $uninstall = & (Join-Path $repoRoot 'uninstall.ps1') -CodexHome $codex -PathScope Process
     Assert-True $uninstall.Uninstalled 'uninstall reports success'
@@ -201,6 +211,7 @@ try {
     Assert-True (-not (Test-Path -LiteralPath $reviewer)) 'reviewer removed'
     Assert-True (Test-Path -LiteralPath $log) 'active log preserved'
     Assert-True (Test-Path -LiteralPath $recoverable.path) 'pending review data preserved'
+    Assert-True (Test-Path -LiteralPath $leasePath) 'active review lease preserved as recovery data'
     $agentsAfter = [IO.File]::ReadAllText((Join-Path $codex 'AGENTS.md'))
     Assert-True (-not $agentsAfter.Contains('codex-friction-log:start')) 'managed AGENTS block removed'
     Assert-True ($agentsAfter.Contains('before-rule') -and $agentsAfter.Contains('after-rule')) 'uninstall preserves surrounding AGENTS content'
@@ -213,6 +224,8 @@ try {
         reviewedRows = 2
         newRowsPreserved = $activeAfterClaim.Count
         incompleteBatchRecoverable = $true
+        overlappingReviewerBlocked = $true
+        staleLeaseRecoverable = $true
         productionUntouched = $true
     }
 }

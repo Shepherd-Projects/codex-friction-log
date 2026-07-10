@@ -15,6 +15,7 @@ $binPath = Join-Path $CodexHome 'bin'
 $agentsPath = Join-Path $CodexHome 'AGENTS.md'
 $logPath = Join-Path $CodexHome 'friction.jsonl'
 $reviewDataPath = Join-Path $CodexHome 'friction-pending'
+$reviewLockPath = Join-Path $CodexHome 'friction-review.lock'
 $startMarker = '<!-- codex-friction-log:start -->'
 $endMarker = '<!-- codex-friction-log:end -->'
 $utf8 = [Text.UTF8Encoding]::new($false)
@@ -78,6 +79,9 @@ if ($RemoveData) {
     }
     if (Test-Path -LiteralPath $reviewDataPath -PathType Container) {
         Remove-Item -LiteralPath $reviewDataPath -Recurse -Force
+    }
+    if (Test-Path -LiteralPath $reviewLockPath -PathType Leaf) {
+        Remove-Item -LiteralPath $reviewLockPath -Force
     }
 }
 

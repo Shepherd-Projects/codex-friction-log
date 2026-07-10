@@ -6,6 +6,7 @@ attention-units/
 friction.jsonl
 friction-pending/
 friction-reports/
+friction-review.lock
 
 # PowerShell/editor residue
 *.tmp

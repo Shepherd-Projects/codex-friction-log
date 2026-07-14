@@ -7,7 +7,9 @@ Use the installed `friction-review` command. First run `friction-review -Claim` 
 
 If there are no pending events, run `friction-review -Release -Lease <lease>`, report "No friction recorded this period.", and do not create an empty recommendations report.
 
-Otherwise group repeated or related events without hiding one-off high-impact blockers. Produce a concise prioritized list. For each recommendation include: affected project(s), event count, observed friction pattern, recommended fix/change, expected benefit, and meaningful risk or tradeoff. Evidence must come from the log; label inference as inference. Do not diagnose inside or rewrite the source log.
+Otherwise classify rows whose `blocked` value starts with `self-correction:` or `user-correction:` as explicit macro course-correction events; all other rows are operational friction. Analyze macro events as a separate lens before combining priorities so high-volume tool-call friction cannot bury planning, assumption, interpretation, sequencing, verification-timing, or quality-control failures. Preserve self versus user origin. Do not infer an unlogged course correction.
+
+Group repeated or related events without hiding one-off high-impact blockers. Produce a concise prioritized list. For each recommendation include: event type(s), affected project(s), event count, observed friction/correction pattern, recommended fix/change, expected benefit, and meaningful risk or tradeoff. Evidence must come from the log; label inference as inference. Do not diagnose inside or rewrite the source log.
 
 Write the complete recommendations first to a durable Markdown file under `%USERPROFILE%\.codex\friction-reports\`, using a UTC timestamp in the filename. Include batch filenames and event counts so consumption is auditable. Do not include secrets or unnecessary raw payloads.
 

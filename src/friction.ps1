@@ -15,11 +15,18 @@ try {
         friction = $friction
     }
     $line = ConvertTo-Json -InputObject $record -Compress -ErrorAction Stop
-    $logPath = Join-Path $env:USERPROFILE '.codex\friction.jsonl' -ErrorAction Stop
-    $mutex = [Threading.Mutex]::new($false, 'Local\CodexFrictionLog')
+    $logPath = [IO.Path]::GetFullPath((Join-Path $env:USERPROFILE '.codex\friction.jsonl' -ErrorAction Stop))
+    $hasher = [Security.Cryptography.SHA256]::Create()
+    try {
+        $pathHash = [BitConverter]::ToString(
+            $hasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($logPath.ToUpperInvariant()))
+        ).Replace('-', '')
+    }
+    finally { $hasher.Dispose() }
+    $mutex = [Threading.Mutex]::new($false, 'Local\CodexFrictionLog-' + $pathHash)
 
     try {
-        $locked = $mutex.WaitOne(1000)
+        $locked = $mutex.WaitOne(5000)
     }
     catch [Threading.AbandonedMutexException] {
         $locked = $true

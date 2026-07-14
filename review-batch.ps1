@@ -68,11 +68,18 @@ try {
     if ([string]::IsNullOrWhiteSpace($env:USERPROFILE)) { throw 'USERPROFILE is required.' }
 
     $codexDirectory = Join-Path $env:USERPROFILE '.codex'
-    $logPath = Join-Path $codexDirectory 'friction.jsonl'
+    $logPath = [IO.Path]::GetFullPath((Join-Path $codexDirectory 'friction.jsonl'))
     $pendingDirectory = Join-Path $codexDirectory 'friction-pending'
     $leasePath = Join-Path $codexDirectory 'friction-review.lock'
     $utf8 = [Text.UTF8Encoding]::new($false)
-    $mutex = [Threading.Mutex]::new($false, 'Local\CodexFrictionLog')
+    $hasher = [Security.Cryptography.SHA256]::Create()
+    try {
+        $pathHash = [BitConverter]::ToString(
+            $hasher.ComputeHash([Text.Encoding]::UTF8.GetBytes($logPath.ToUpperInvariant()))
+        ).Replace('-', '')
+    }
+    finally { $hasher.Dispose() }
+    $mutex = [Threading.Mutex]::new($false, 'Local\CodexFrictionLog-' + $pathHash)
 
     try {
         $locked = $mutex.WaitOne(5000)

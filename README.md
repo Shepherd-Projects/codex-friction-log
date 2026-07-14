@@ -1,17 +1,19 @@
 # Codex Friction Log
 
-Codex can hit unexpected tooling or environment friction, silently work around it, and finish the task without leaving evidence. This installs one global instruction and one tiny command so those moments become a reviewable per-user log.
+Codex can hit unexpected tooling friction, pursue a materially wrong approach, or need a substantive user correction—then recover without leaving useful evidence. This installs one global instruction and one tiny command so those moments become a reviewable per-user log.
 
 ```json
 {"ts":"2026-07-10T09:15:00.0000000+00:00","cwd":"C:\\work\\project-a","blocked":"run formatter","friction":"formatter executable was missing"}
+{"ts":"2026-07-10T10:30:00.0000000+00:00","cwd":"C:\\work\\project-a","blocked":"self-correction: built the workflow around polling","friction":"later lifecycle evidence required event-driven state transitions"}
+{"ts":"2026-07-10T11:00:00.0000000+00:00","cwd":"C:\\work\\project-a","blocked":"user-correction: treated the requested audit as implementation work","friction":"user asked for recommendations only"}
 ```
 
-The logger records the blocked intent and observed obstacle only. Diagnosis and fix ideas belong in the later review.
+The logger records the blocked intent/approach and observed obstacle/correction only. Diagnosis and fix ideas belong in the later review. Reserved `self-correction:` and `user-correction:` prefixes make macro events identifiable without expanding the four-field schema.
 
 ## Properties
 
 - One log for every Codex project and session owned by the same Windows user.
-- Immediate capture: first recognition, before retry or workaround; never retrospective.
+- Immediate capture: first recognition, before retry, workaround, or meaningful rework; never end-of-task backfill.
 - Silent, fail-open append. Logger failure never interrupts the primary task.
 - No daemon, service, watcher, background PowerShell process, or MCP server.
 - Compact newline-delimited JSON: `ts`, `cwd`, `blocked`, `friction`.
@@ -67,6 +69,15 @@ At a qualifying friction point, Codex runs:
 friction '<blocked intent>' '<observed obstacle>'
 ```
 
+For macro-level course corrections, it uses the same command and file:
+
+```powershell
+friction 'self-correction: <prior approach>' '<why it proved wrong/insufficient>'
+friction 'user-correction: <prior approach>' '<what user corrected>'
+```
+
+`self-correction:` is for a substantial approach pursued and then abandoned or materially redirected—not normal test/code iteration. `user-correction:` is for a user's substantive correction to an assumption, plan, interpretation, or output—not wording, taste, or minor revision. Log at recognition, before rework. Do not reconstruct these events at task end.
+
 The command appends one UTF-8 JSON line and exits without output. The working directory identifies the affected project. A named mutex prevents concurrent writers from interleaving lines.
 
 Invalid arguments, serialization errors, an unavailable path, or a one-second mutex timeout produce a silent no-op. Losing an event is preferable to distracting or blocking the task being performed.
@@ -75,7 +86,7 @@ This is instruction-driven, not a native Codex event hook. A model can still fai
 
 ## Weekly reviewer
 
-The recommended automation runs weekly, uses a strong model, creates recommendations only, and then consumes exactly the rows included in its durable report. New rows arriving during review stay in the active log for the next run.
+The recommended automation runs weekly, uses a strong model, separates macro course corrections from operational friction, creates recommendations only, and then consumes exactly the rows included in its durable report. New rows arriving during review stay in the active log for the next run.
 
 See [scheduled reviewer setup](docs/scheduled-review.md) and the [exact reviewer prompt](docs/reviewer-prompt.md).
 

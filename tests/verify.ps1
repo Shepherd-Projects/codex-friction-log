@@ -33,6 +33,18 @@ foreach ($script in $scripts) {
     Assert-True ($errors.Count -eq 0) "PowerShell syntax: $script"
 }
 
+$snippet = [IO.File]::ReadAllText((Join-Path $repoRoot 'AGENTS.snippet.md'))
+$reviewerPrompt = [IO.File]::ReadAllText((Join-Path $repoRoot 'docs\reviewer-prompt.md'))
+$scheduledReview = [IO.File]::ReadAllText((Join-Path $repoRoot 'docs\scheduled-review.md'))
+Assert-True ($snippet.Contains("friction 'self-correction: <prior approach>' '<why it proved wrong/insufficient>'")) 'global rule captures substantial self-corrections'
+Assert-True ($snippet.Contains("friction 'user-correction: <prior approach>' '<what user corrected>'")) 'global rule captures substantive user corrections'
+Assert-True ($snippet.Contains('Recognition-time only; never backfill/end-of-task.')) 'global rule captures macro corrections in real time'
+Assert-True ($snippet.Contains('Skip ordinary uncertainty, expected test/code iteration, minor revisions, wording/taste.')) 'global rule excludes ordinary iteration and micro revisions'
+Assert-True ($reviewerPrompt.Contains('Analyze macro events as a separate lens before combining priorities so high-volume tool-call friction cannot bury')) 'reviewer protects macro events from operational noise'
+Assert-True ($reviewerPrompt.Contains('Preserve self versus user origin.')) 'reviewer preserves correction origin'
+Assert-True ($reviewerPrompt.Contains('Do not infer an unlogged course correction.')) 'reviewer does not invent macro events'
+Assert-True ($scheduledReview.Contains('separate self-correction, user-correction, and operational-friction counts')) 'scheduled guide exposes macro event counts'
+
 $productionCodex = Join-Path $env:USERPROFILE '.codex'
 $productionPaths = @(
     (Join-Path $productionCodex 'AGENTS.md'),
@@ -42,6 +54,11 @@ $productionPaths = @(
 )
 $productionBefore = @{}
 foreach ($path in $productionPaths) { $productionBefore[$path] = Get-Fingerprint $path }
+$productionLogPath = Join-Path $productionCodex 'friction.jsonl'
+$productionLogBytesBefore = if (Test-Path -LiteralPath $productionLogPath -PathType Leaf) {
+    [IO.File]::ReadAllBytes($productionLogPath)
+}
+else { $null }
 $userPathBefore = [Environment]::GetEnvironmentVariable('Path', 'User')
 
 $root = Join-Path $env:TEMP ('codex-friction-tests-' + [Guid]::NewGuid().ToString('N'))
@@ -130,6 +147,16 @@ try {
     $row = $rows[0] | ConvertFrom-Json
     Assert-True (($row.PSObject.Properties.Name -join ',') -eq 'ts,cwd,blocked,friction') 'exact JSONL schema and key order'
     Assert-True ([DateTimeOffset]::Parse($row.ts).Offset -eq [TimeSpan]::Zero) 'UTC timestamp'
+
+    $macroOutput = @(
+        & $writer 'self-correction: built around polling' 'lifecycle evidence required event-driven state transitions'
+        & $writer 'user-correction: treated audit as implementation' 'user requested recommendations only'
+    )
+    Assert-True ($macroOutput.Count -eq 0) 'macro logger calls are silent'
+    $macroRows = @(Get-Content -LiteralPath $log | ForEach-Object { $_ | ConvertFrom-Json })
+    Assert-True ($macroRows.Count -eq 3) 'operational and macro events share one log'
+    Assert-True ($macroRows[1].blocked.StartsWith('self-correction: ') -and $macroRows[2].blocked.StartsWith('user-correction: ')) 'macro prefixes remain machine-identifiable'
+    Assert-True (($macroRows[1].PSObject.Properties.Name -join ',') -eq 'ts,cwd,blocked,friction') 'macro events preserve compact legacy schema'
 
     $beforeInvalid = (Get-Item -LiteralPath $log).Length
     $invalidOutput = @(
@@ -246,6 +273,16 @@ finally {
 }
 
 foreach ($path in $productionPaths) {
+    if ($path -eq $productionLogPath -and $null -ne $productionLogBytesBefore) {
+        Assert-True (Test-Path -LiteralPath $path -PathType Leaf) 'production friction log remains present'
+        $productionLogBytesAfter = [IO.File]::ReadAllBytes($path)
+        $prefixPreserved = $productionLogBytesAfter.Length -ge $productionLogBytesBefore.Length
+        for ($index = 0; $prefixPreserved -and $index -lt $productionLogBytesBefore.Length; $index++) {
+            if ($productionLogBytesAfter[$index] -ne $productionLogBytesBefore[$index]) { $prefixPreserved = $false }
+        }
+        Assert-True $prefixPreserved 'production friction log preserves every pre-test byte while allowing concurrent append-only growth'
+        continue
+    }
     Assert-True ((Get-Fingerprint $path) -eq $productionBefore[$path]) "production file unchanged: $path"
 }
 Assert-True ([Environment]::GetEnvironmentVariable('Path', 'User') -eq $userPathBefore) 'user PATH unchanged by tests'

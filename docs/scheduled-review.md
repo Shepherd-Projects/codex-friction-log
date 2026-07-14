@@ -31,12 +31,15 @@ Directly reading and then clearing `friction.jsonl` can delete events appended d
 
 Thus new events survive for next week, reviewed events disappear, overlapping runs cannot duplicate work, and a failed review remains recoverable after its lease becomes stale.
 
+The report must distinguish macro course corrections (`self-correction:` and `user-correction:`) from operational friction so numerous tool-call failures cannot hide planning or quality-control problems.
+
 ## Expected task output
 
 The scheduled task should return:
 
 - report path;
 - number of friction events and projects reviewed;
+- separate self-correction, user-correction, and operational-friction counts;
 - prioritized recommended fixes or changes;
 - explicit statement that nothing was implemented;
 - any unconsumed batch and reason.

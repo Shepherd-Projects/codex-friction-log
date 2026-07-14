@@ -80,7 +80,7 @@ friction 'user-correction: <prior approach>' '<what user corrected>'
 
 The command appends one UTF-8 JSON line and exits without output. The working directory identifies the affected project. A named mutex prevents concurrent writers from interleaving lines.
 
-Invalid arguments, serialization errors, an unavailable path, or a one-second mutex timeout produce a silent no-op. Losing an event is preferable to distracting or blocking the task being performed.
+Invalid arguments, serialization errors, an unavailable path, or a five-second mutex timeout produce a silent no-op. Losing an event is preferable to distracting or blocking the task being performed.
 
 This is instruction-driven, not a native Codex event hook. A model can still fail to recognize or follow the instruction. Project-level `AGENTS.md` rules can also conflict with the global rule.
 
